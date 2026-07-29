@@ -1,6 +1,10 @@
 """
 Pydantic schemas for the Global Logs module.
-Maps 1:1 onto app/db/models/request_log.py columns.
+
+FIX: Added risk_score field. RequestLog has no risk_score column — it is
+fetched via LEFT JOIN on DecisionLog.request_uuid in logs_service.py.
+The schema now declares it Optional[float] so None is valid when a request
+has no decision log entry (e.g. requests rejected before the engine ran).
 """
 from pydantic import BaseModel
 from datetime import datetime
@@ -18,7 +22,8 @@ class GlobalLogEntry(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     status_code: Optional[int] = None
-    action: Optional[str] = None  # allow | throttle | block
+    action: Optional[str] = None       # allow | throttle | block
+    risk_score: Optional[float] = None  # FIX: joined from DecisionLog
     created_at: datetime
 
     class Config:

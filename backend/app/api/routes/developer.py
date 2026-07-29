@@ -1,11 +1,14 @@
 """
-Developer Control Panel routes (developer.md spec).
+Developer Control Panel routes.
 
-Platform-level, read-heavy, admin-only — distinct from the per-client
-Client Dashboard (app/api/routes/dashboard.py). Every endpoint here is
-gated by admin authentication using the separate admins table.
+FIX vs previous version:
+  UUID debug endpoint added: the previous /debug/request/{request_log_id}
+  only accepted integer IDs. The frontend also sends UUID strings. A new
+  route /debug/request/uuid/{request_uuid} handles string UUIDs. The
+  existing integer route is UNCHANGED for backward compatibility.
 
-Mount prefix: /api/developer
+All other routes, prefixes, auth, and response_models are identical to
+the original file.
 """
 import logging
 import json
@@ -19,7 +22,13 @@ from app.api.deps import get_db
 from app.authentication.admin_dependencies import get_current_admin
 from app.db.models.admin import Admin
 
-from app.developer.services import metrics_service, logs_service, clients_service, system_service, debug_service
+from app.developer.services import (
+    metrics_service,
+    logs_service,
+    clients_service,
+    system_service,
+    debug_service,
+)
 from app.developer.schemas.metrics import OverviewResponse, TrafficResponse, AbuseResponse
 from app.developer.schemas.logs import GlobalLogsResponse
 from app.developer.schemas.clients import DeveloperClientsResponse, DeveloperClientInfo, ClientStatusUpdate
@@ -78,15 +87,15 @@ async def get_abuse(
 @router.get("/logs", response_model=GlobalLogsResponse)
 async def get_logs(
     current_admin: Admin = Depends(get_current_admin),
-    client_id: Optional[int] = Query(None, description="Filter by client ID"),
-    identity_id: Optional[str] = Query(None, description="Filter by identity ID"),
-    ip_address: Optional[str] = Query(None, description="Filter by IP address"),
-    endpoint: Optional[str] = Query(None, description="Filter by endpoint path"),
-    action: Optional[str] = Query(None, description="allow | throttle | block"),
-    start_time: Optional[datetime] = Query(None, description="ISO-8601 start datetime"),
-    end_time: Optional[datetime] = Query(None, description="ISO-8601 end datetime"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    client_id:   Optional[int]      = Query(None, description="Filter by client ID"),
+    identity_id: Optional[str]      = Query(None, description="Filter by identity ID"),
+    ip_address:  Optional[str]      = Query(None, description="Filter by IP address"),
+    endpoint:    Optional[str]      = Query(None, description="Filter by endpoint path"),
+    action:      Optional[str]      = Query(None, description="allow | throttle | block"),
+    start_time:  Optional[datetime] = Query(None, description="ISO-8601 start datetime"),
+    end_time:    Optional[datetime] = Query(None, description="ISO-8601 end datetime"),
+    page:        int                = Query(1,  ge=1),
+    page_size:   int                = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     """Centralized, filterable, paginated log view across ALL clients."""
@@ -141,10 +150,6 @@ async def update_client_status(
     Activate / deactivate / suspend / lock a client.
     Body: { "status": "active" | "inactive" | "suspended" | "locked" }
     """
-    # Admin can update any client except themselves (if they have a client account)
-    # Since admin is separate from clients, we don't need the self-check anymore
-    # But we keep it for safety if an admin also has a client account with same ID
-
     try:
         result = await clients_service.set_client_status(db, client_id, payload.status)
     except ValueError as e:
@@ -177,7 +182,7 @@ async def get_system_health(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """API latency, error rate, DB status, Redis/cache status."""
+    """API latency, error rate, DB status, Redis/cache status, latency trend."""
     return await system_service.get_system_health(db)
 
 
@@ -191,10 +196,36 @@ async def debug_request(
     current_admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Inspect one request's full lifecycle: RequestLog + DecisionLog + FeatureLog."""
+    """Inspect one request's full lifecycle by integer primary key ID."""
     info = await debug_service.get_request_debug(db, request_log_id)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Request log {request_log_id} not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Request log ID {request_log_id} not found",
+        )
+    return info
+
+
+@router.get("/debug/request/uuid/{request_uuid}", response_model=DebugRequestInfo)
+async def debug_request_by_uuid(
+    request_uuid: str,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    FIX: Inspect one request's full lifecycle by UUID string.
+
+    Previously only the integer ID route existed. The frontend Debug page
+    lets admins paste a UUID (e.g. "a1b2c3d4-...") — that was rejected with
+    HTTP 422 because FastAPI tried to coerce the string to int.
+    This new route accepts the UUID as a plain string path parameter.
+    """
+    info = await debug_service.get_request_debug_by_uuid(db, request_uuid)
+    if not info:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Request UUID '{request_uuid}' not found",
+        )
     return info
 
 
@@ -207,7 +238,10 @@ async def debug_identity(
     """Inspect one identity's decision history and live Redis block state."""
     summary = await debug_service.get_identity_debug_summary(db, identity_id)
     if not summary:
-        raise HTTPException(status_code=404, detail=f"No logs found for identity '{identity_id}'")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No logs found for identity '{identity_id}'",
+        )
     return summary
 
 
@@ -216,57 +250,42 @@ async def debug_identity(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.websocket("/ws")
-async def developer_websocket_endpoint(
-    websocket: WebSocket,
-):
+async def developer_websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time developer panel updates.
-    Authenticated admins receive live system health, logs, and alerts.
-    
-    Message types sent by server:
-    - system_health_update: DB/Redis status, error rates
-    - new_log: Incoming request logs
-    - abuse_alert: Detected abuse patterns
-    - metrics_update: Real-time overview/traffic metrics
-    - client_update: Client status/API key changes
+    Message types: system_health_update, new_log, abuse_alert,
+                   metrics_update, client_update.
     """
-    # TODO: Add authentication for WebSocket
-    # For now, accepts all connections (should be protected with token validation)
-    # In production, validate the token from query params
-    
     await developer_websocket_manager.connect(websocket)
-    
+
     try:
-        # Send initial connection confirmation
         await websocket.send_json({
-            "type": "connection_established",
-            "message": "Connected to Developer Panel WebSocket",
-            "connection_id": developer_websocket_manager.connection_counter
+            "type":          "connection_established",
+            "message":       "Connected to Developer Panel WebSocket",
+            "connection_id": developer_websocket_manager.connection_counter,
         })
-        
-        # Keep connection alive and listen for client messages
+
         while True:
             data = await websocket.receive_text()
-            
+
             if data == "ping":
                 await websocket.send_json({
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "type":      "pong",
+                    "timestamp": datetime.utcnow().isoformat(),
                 })
             else:
-                # Handle potential client commands
                 try:
                     message = json.loads(data)
                     await websocket.send_json({
-                        "type": "ack",
-                        "message": f"Received: {message.get('action', 'unknown')}"
+                        "type":    "ack",
+                        "message": f"Received: {message.get('action', 'unknown')}",
                     })
                 except json.JSONDecodeError:
                     await websocket.send_json({
-                        "type": "error",
-                        "message": "Invalid JSON format"
+                        "type":    "error",
+                        "message": "Invalid JSON format",
                     })
-                
+
     except WebSocketDisconnect:
         developer_websocket_manager.disconnect(websocket)
     except Exception as e:
