@@ -141,6 +141,62 @@
   color: var(--text-secondary);
 }
 
+/* ─── COMPACT MODE ───────────────────────────────────────── */
+.threat-timeline-compact {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.threat-timeline-compact .timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.threat-timeline-compact .timeline-item:last-child {
+  border-bottom: none;
+}
+
+.threat-timeline-compact .timeline-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.threat-timeline-compact .timeline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.threat-timeline-compact .timeline-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.threat-timeline-compact .timeline-event {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.threat-timeline-compact .timeline-time {
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+}
+
+.threat-timeline-compact .no-threats {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
 /* Pulse animation */
 @keyframes pulse {
   0%, 100% {

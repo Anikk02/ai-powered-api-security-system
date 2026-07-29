@@ -1,4 +1,5 @@
 // src/components/client/dashboard/SuspiciousUsers/SuspiciousUsers.jsx
+
 import React, { useState } from 'react';
 import './SuspiciousUsers.css';
 import { Shield, AlertCircle, Eye, Ban, ChevronDown, ChevronUp } from 'lucide-react';
@@ -21,6 +22,10 @@ const SuspiciousUsers = ({ users }) => {
 
   const getStatusBadge = (status) => {
     const configs = {
+      // Actual enforcement states
+      'blocked': { color: '#d93025', bg: '#fce8e6', label: 'Blocked' },
+      'throttled': { color: '#fbbc04', bg: '#fef7e0', label: 'Throttled' },
+      // Risk levels
       'critical': { color: '#d93025', bg: '#fce8e6', label: 'Critical' },
       'high_risk': { color: '#ea4335', bg: '#fce8e6', label: 'High Risk' },
       'elevated': { color: '#fbbc04', bg: '#fef7e0', label: 'Elevated' },
@@ -46,8 +51,9 @@ const SuspiciousUsers = ({ users }) => {
     return 'low';
   };
 
-  const getActionLabel = (isBlocked, status) => {
+  const getActionLabel = (isBlocked, isThrottled, status) => {
     if (isBlocked) return 'Blocked';
+    if (isThrottled) return 'Throttled';
     if (status === 'critical' || status === 'high_risk') return 'Challenge';
     return 'Monitor';
   };
@@ -85,42 +91,52 @@ const SuspiciousUsers = ({ users }) => {
             </tr>
           </thead>
           <tbody>
-            {displayUsers.map((user) => (
-              <tr key={user.id}>
-                <td>
-                  <div className="user-info">
-                    <span className="user-id">{user.id}</span>
-                    <span className="user-ip">{user.ip}</span>
-                  </div>
-                </td>
-                <td>{user.violations}</td>
-                <td>
-                  <div className="threat-score">
-                    <div className="score-bar">
-                      <div
-                        className={`score-fill ${getThreatScoreColor(user.threatScore)}`}
-                        style={{ width: `${Math.min(user.threatScore * 100, 100)}%` }}
-                      />
+            {displayUsers.map((user) => {
+              // Determine if the user is actually blocked or throttled
+              const isActuallyBlocked = user.isBlocked || user.status === 'blocked';
+              const isActuallyThrottled = user.status === 'throttled';
+              
+              return (
+                <tr key={user.id}>
+                  <td>
+                    <div className="user-info">
+                      <span className="user-id">{user.id}</span>
+                      <span className="user-ip">{user.ip}</span>
                     </div>
-                    <span className="score-value">{user.threatScore.toFixed(2)}</span>
-                  </div>
-                </td>
-                <td>{getStatusBadge(user.status)}</td>
-                <td>
-                  <span className={`action-badge ${user.isBlocked ? 'blocked' : 'monitor'}`}>
-                    {user.isBlocked ? (
-                      <>
-                        <Ban size={14} /> Blocked
-                      </>
-                    ) : (
-                      <>
-                        <Eye size={14} /> {getActionLabel(user.isBlocked, user.status)}
-                      </>
-                    )}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>{user.violations}</td>
+                  <td>
+                    <div className="threat-score">
+                      <div className="score-bar">
+                        <div
+                          className={`score-fill ${getThreatScoreColor(user.threatScore)}`}
+                          style={{ width: `${Math.min(user.threatScore * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="score-value">{user.threatScore.toFixed(2)}</span>
+                    </div>
+                  </td>
+                  <td>{getStatusBadge(user.status)}</td>
+                  <td>
+                    <span className={`action-badge ${isActuallyBlocked ? 'blocked' : 'monitor'}`}>
+                      {isActuallyBlocked ? (
+                        <>
+                          <Ban size={14} /> Blocked
+                        </>
+                      ) : isActuallyThrottled ? (
+                        <>
+                          <AlertCircle size={14} /> Throttled
+                        </>
+                      ) : (
+                        <>
+                          <Eye size={14} /> {getActionLabel(isActuallyBlocked, isActuallyThrottled, user.status)}
+                        </>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

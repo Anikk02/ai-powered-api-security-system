@@ -79,39 +79,38 @@ async def get_dashboard_stats(
     prev_rps = prev_requests / 60 if prev_requests > 0 else 1
     rps_trend = round(((requests_per_second - prev_rps) / max(prev_rps, 0.01)) * 100, 1)
 
-    # ── 2 query: violations, risk composition, avg risk, latency, blocked, throttled ───────────
+    # ── 2 query: violations, risk composition, avg risk, latency ───────────
     dec_result = await db.execute(
         select(
-            # Violations
+            # Violations - ACTUAL blocked + throttled decisions
             func.sum(case((and_(
                 DecisionLog.created_at >= last_15m,
-                DecisionLog.risk_score > med_th,
+                DecisionLog.action.in_(["block", "throttle"]),
                 DecisionLog.client_id == client_id
             ), 1), else_=0)).label("violations"),
             func.sum(case((and_(
                 DecisionLog.created_at >= prev_15_start,
                 DecisionLog.created_at < prev_15_end,
-                DecisionLog.risk_score > med_th,
+                DecisionLog.action.in_(["block", "throttle"]),
                 DecisionLog.client_id == client_id
             ), 1), else_=0)).label("prev_violations"),
             
-            # Risk composition
+            # Risk composition - based on ACTUAL decisions, not thresholds
             func.sum(case((and_(
                 DecisionLog.created_at >= last_15m,
-                DecisionLog.risk_score > high_th,
+                DecisionLog.action == "block",
                 DecisionLog.client_id == client_id
-            ), 1), else_=0)).label("high_count"),
+            ), 1), else_=0)).label("block_count"),
             func.sum(case((and_(
                 DecisionLog.created_at >= last_15m,
-                DecisionLog.risk_score > med_th,
-                DecisionLog.risk_score <= high_th,
+                DecisionLog.action == "throttle",
                 DecisionLog.client_id == client_id
-            ), 1), else_=0)).label("medium_count"),
+            ), 1), else_=0)).label("throttle_count"),
             func.sum(case((and_(
                 DecisionLog.created_at >= last_15m,
-                DecisionLog.risk_score <= med_th,
+                DecisionLog.action == "allow",
                 DecisionLog.client_id == client_id
-            ), 1), else_=0)).label("low_count"),
+            ), 1), else_=0)).label("allow_count"),
             
             # Avg risk
             func.avg(case((and_(
@@ -149,7 +148,7 @@ async def get_dashboard_stats(
                 DecisionLog.client_id == client_id
             ), 1), else_=None)).label("prev_total_requests"),
             
-            # Blocked count in last 15m
+            # Blocked count in last 15m - ACTUAL block decisions
             func.count(case((and_(
                 DecisionLog.created_at >= last_15m,
                 DecisionLog.action == "block",
@@ -164,7 +163,7 @@ async def get_dashboard_stats(
                 DecisionLog.client_id == client_id
             ), 1), else_=None)).label("prev_blocked_count"),
             
-            # Throttled count in last 15m
+            # Throttled count in last 15m - ACTUAL throttle decisions
             func.count(case((and_(
                 DecisionLog.created_at >= last_15m,
                 DecisionLog.action == "throttle",
@@ -198,9 +197,9 @@ async def get_dashboard_stats(
 
     violations = dec_row.violations or 0
     prev_violations = dec_row.prev_violations or 0
-    high_count = dec_row.high_count or 0
-    medium_count = dec_row.medium_count or 0
-    low_count = dec_row.low_count or 0
+    block_count = dec_row.block_count or 0
+    throttle_count = dec_row.throttle_count or 0
+    allow_count = dec_row.allow_count or 0
     avg_risk_score = round(dec_row.avg_risk or 0, 2)
     prev_avg_risk = dec_row.prev_avg_risk or 0.01
 
@@ -218,16 +217,14 @@ async def get_dashboard_stats(
     new_users_15m = dec_row.new_users_15m or 0
     prev_new_users = dec_row.prev_new_users or 0
 
-    # ── 3 query: suspicious sessions ───────────
+    # ── 3 query: suspicious sessions (ACTUAL blocked/throttled identities) ──
     sess_result = await db.execute(
-        select(func.count(func.distinct(RequestLog.identity_id)))
-        .select_from(DecisionLog)
-        .join(RequestLog, DecisionLog.request_id == RequestLog.id)
+        select(func.count(func.distinct(DecisionLog.identity_id)))
         .where(and_(
             DecisionLog.created_at >= last_15m,
-            DecisionLog.risk_score > med_th,
-            RequestLog.identity_id.isnot(None),
-            RequestLog.client_id == client_id
+            DecisionLog.action.in_(["block", "throttle"]),
+            DecisionLog.identity_id.isnot(None),
+            DecisionLog.client_id == client_id
         ))
     )
     suspicious_sessions = sess_result.scalar() or 0
@@ -317,12 +314,12 @@ async def get_dashboard_stats(
     else:
         new_users_trend = 0.0
 
-    # ── Traffic composition ───────────
-    total = high_count + medium_count + low_count
+    # ── Traffic composition based on ACTUAL decisions ───────────
+    total = block_count + throttle_count + allow_count
     traffic_composition = {
-        "normal": round((low_count / total) * 100) if total else 0,
-        "suspicious": round((medium_count / total) * 100) if total else 0,
-        "high_risk": round((high_count / total) * 100) if total else 0,
+        "normal": round((allow_count / total) * 100) if total else 0,
+        "suspicious": round((throttle_count / total) * 100) if total else 0,
+        "high_risk": round((block_count / total) * 100) if total else 0,
     }
 
     return DashboardStatsResponse(
@@ -359,7 +356,6 @@ async def get_traffic_data(
     client_id = current_client.id
     
     now = datetime.utcnow()
-    high_th, med_th = get_adaptive_thresholds()
 
     # Configure timeframe parameters
     if timeframe == "15m":
@@ -397,22 +393,7 @@ async def get_traffic_data(
         .order_by("bucket")
     )).all()
 
-    # ── Query: anomalies (risk_score > med_th) ──────────────
-    anomaly_rows = (await db.execute(
-        select(
-            func.date_trunc(trunc_unit, DecisionLog.created_at).label("bucket"),
-            func.count().label("cnt")
-        )
-        .where(and_(
-            DecisionLog.created_at >= start_time,
-            DecisionLog.risk_score > med_th,
-            DecisionLog.client_id == client_id
-        ))
-        .group_by("bucket")
-        .order_by("bucket")
-    )).all()
-
-    # ── Query: blocked (risk_score > high_th) ───────────────
+    # ── Query: blocked (ACTUAL block decisions) ──────────────
     blocked_rows = (await db.execute(
         select(
             func.date_trunc(trunc_unit, DecisionLog.created_at).label("bucket"),
@@ -420,7 +401,22 @@ async def get_traffic_data(
         )
         .where(and_(
             DecisionLog.created_at >= start_time,
-            DecisionLog.risk_score > high_th,
+            DecisionLog.action == "block",
+            DecisionLog.client_id == client_id
+        ))
+        .group_by("bucket")
+        .order_by("bucket")
+    )).all()
+
+    # ── Query: throttled (ACTUAL throttle decisions) ───────────────
+    throttled_rows = (await db.execute(
+        select(
+            func.date_trunc(trunc_unit, DecisionLog.created_at).label("bucket"),
+            func.count().label("cnt")
+        )
+        .where(and_(
+            DecisionLog.created_at >= start_time,
+            DecisionLog.action == "throttle",
             DecisionLog.client_id == client_id
         ))
         .group_by("bucket")
@@ -428,8 +424,8 @@ async def get_traffic_data(
     )).all()
 
     req_by_bucket = {row.bucket: row.cnt for row in request_rows}
-    anom_by_bucket = {row.bucket: row.cnt for row in anomaly_rows}
     blocked_by_bucket = {row.bucket: row.cnt for row in blocked_rows}
+    throttled_by_bucket = {row.bucket: row.cnt for row in throttled_rows}
 
     data_points = []
     for i in range(points):
@@ -442,28 +438,27 @@ async def get_traffic_data(
                 v for k, v in req_by_bucket.items()
                 if bucket_start <= k < bucket_end
             )
-            anomalies = sum(
-                v for k, v in anom_by_bucket.items()
-                if bucket_start <= k < bucket_end
-            )
             blocked = sum(
                 v for k, v in blocked_by_bucket.items()
                 if bucket_start <= k < bucket_end
             )
+            throttled = sum(
+                v for k, v in throttled_by_bucket.items()
+                if bucket_start <= k < bucket_end
+            )
         else:
             requests = req_by_bucket.get(bucket_start, 0)
-            anomalies = anom_by_bucket.get(bucket_start, 0)
             blocked = blocked_by_bucket.get(bucket_start, 0)
+            throttled = throttled_by_bucket.get(bucket_start, 0)
 
         data_points.append(TrafficDataPoint(
             time=bucket_start,
             requests=requests,
-            anomalies=anomalies,
+            anomalies=throttled,  # Using throttled as anomalies
             blocked=blocked
         ))
 
     return TrafficResponse(data=data_points, timeframe=timeframe)
-
 
 @router.get("/suspicious-users", response_model=List[SuspiciousUserResponse])
 async def get_suspicious_users(
@@ -476,28 +471,61 @@ async def get_suspicious_users(
     
     now = datetime.utcnow()
     last_15m = now - timedelta(minutes=15)
-    high_th, med_th = get_adaptive_thresholds()
+
+    # Rank each identity's decisions by recency so we can pull the
+    # TRUE latest action/reason - func.max() on a string column sorts
+    # alphabetically ("throttle" > "block" > "allow"), not chronologically,
+    # so a user throttled-then-blocked in the same window would incorrectly
+    # report "throttle" as their latest action.
+    ranked = (
+        select(
+            DecisionLog.identity_id.label("identity_id"),
+            DecisionLog.action.label("action"),
+            DecisionLog.explanation.label("explanation"),
+            DecisionLog.created_at.label("created_at"),
+            func.row_number().over(
+                partition_by=DecisionLog.identity_id,
+                order_by=DecisionLog.created_at.desc(),
+            ).label("rn"),
+        )
+        .where(and_(
+            DecisionLog.created_at >= last_15m,
+            DecisionLog.action.in_(["block", "throttle"]),
+            DecisionLog.identity_id.isnot(None),
+            DecisionLog.client_id == client_id
+        ))
+        .subquery()
+    )
+    latest = (
+        select(
+            ranked.c.identity_id,
+            ranked.c.action.label("latest_action"),
+            ranked.c.explanation.label("latest_reason"),
+        )
+        .where(ranked.c.rn == 1)
+        .subquery()
+    )
 
     result = await db.execute(
         select(
-            RequestLog.identity_id.label("identity_id"),
+            DecisionLog.identity_id.label("identity_id"),
             func.min(RequestLog.ip_address).label("ip"),
             func.max(DecisionLog.risk_score).label("max_risk"),
             func.max(DecisionLog.created_at).label("last_seen"),
-            func.max(DecisionLog.explanation).label("reason"),
-            func.max(DecisionLog.action).label("latest_action"),
             func.count(DecisionLog.id).label("violations"),
+            func.max(latest.c.latest_action).label("latest_action"),
+            func.max(latest.c.latest_reason).label("reason"),
         )
         .select_from(DecisionLog)
         .join(RequestLog, DecisionLog.request_id == RequestLog.id)
+        .join(latest, latest.c.identity_id == DecisionLog.identity_id)
         .where(and_(
             DecisionLog.created_at >= last_15m,
-            DecisionLog.risk_score > med_th,
-            RequestLog.identity_id.isnot(None),
-            RequestLog.client_id == client_id
+            DecisionLog.action.in_(["block", "throttle"]),  # ACTUAL blocked/throttled
+            DecisionLog.identity_id.isnot(None),
+            DecisionLog.client_id == client_id
         ))
-        .group_by(RequestLog.identity_id)
-        .having(func.max(DecisionLog.risk_score) > med_th)
+        .group_by(DecisionLog.identity_id)
         .order_by(func.max(DecisionLog.risk_score).desc())
         .limit(limit)
     )
@@ -513,9 +541,18 @@ async def get_suspicious_users(
         latest_action = row.latest_action
 
         is_blocked = latest_action == "block"
+        is_throttled = latest_action == "throttle"
 
-        # Determine status based on risk score
-        if risk_score > high_th + 0.1:
+        # Determine status - actual enforcement state takes priority
+        # over the risk-score bucket, otherwise a blocked user can show
+        # as merely "high_risk" if their risk score happens to fall
+        # short of the "critical" cutoff.
+        high_th, med_th = get_adaptive_thresholds()
+        if is_blocked:
+            status = "blocked"
+        elif is_throttled:
+            status = "throttled"
+        elif risk_score > high_th + 0.1:
             status = "critical"
         elif risk_score > high_th:
             status = "high_risk"
@@ -550,7 +587,6 @@ async def get_recent_alerts(
     
     now = datetime.utcnow()
     last_15m = now - timedelta(minutes=15)
-    high_th, _ = get_adaptive_thresholds()
 
     result = await db.execute(
         select(
@@ -565,7 +601,7 @@ async def get_recent_alerts(
         .join(RequestLog, DecisionLog.request_id == RequestLog.id)
         .where(and_(
             DecisionLog.created_at >= last_15m,
-            DecisionLog.risk_score > high_th,
+            DecisionLog.action.in_(["block", "throttle"]),  # ACTUAL blocked/throttled
             RequestLog.client_id == client_id
         ))
         .order_by(DecisionLog.risk_score.desc())
@@ -577,9 +613,7 @@ async def get_recent_alerts(
         risk_score = row[2] or 0
         action = row[3]
 
-        if risk_score > high_th + 0.1:
-            alert_type = "Critical Threat"
-        elif action == "block":
+        if action == "block":
             alert_type = "Blocked Threat"
         elif action == "throttle":
             alert_type = "Rate Limited Threat"

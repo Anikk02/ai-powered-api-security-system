@@ -77,6 +77,15 @@ const authService = {
       new_email: newEmail,
     });
   },
+
+  // ============================
+  // ✅ CONFIRM EMAIL CHANGE
+  // ============================
+  async confirmEmail(token) {
+    return await api.post('/api/auth/confirm-email', {
+      token,
+    });
+  },
 };
 
 export default authService;

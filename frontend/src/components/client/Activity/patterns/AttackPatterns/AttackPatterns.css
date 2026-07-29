@@ -34,3 +34,42 @@
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
+
+/* ─── COMPACT MODE ───────────────────────────────────────── */
+.attack-patterns-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.attack-patterns-compact .patterns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.attack-patterns-compact .pattern-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.375rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.attack-patterns-compact .endpoint {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.attack-patterns-compact .percentage {
+  color: var(--accent-danger);
+  font-weight: 600;
+}
+
+.attack-patterns-compact .no-patterns {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.5rem 0;
+}

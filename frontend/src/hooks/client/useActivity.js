@@ -1,72 +1,103 @@
-import { useFetch } from "./useFetch";
+// useActivity.js
 import { activityService } from "../../services/client/activityService";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+
+const normalizeActivityData = (result) => ({
+  timeline: result.timeline || [],
+  endpoints: result.endpoints || [],
+  trend: result.trend || [],
+  insights: result.insights || null,
+  metrics: result.metrics || null,
+  peak: result.peak || null,
+  patterns: result.patterns || [],
+  correlations: result.correlations || [],
+  topEndpoint: result.topEndpoint || null,
+  healthScore: typeof result.healthScore === 'number' ? result.healthScore : null,
+  isMock: !!result.isMock,
+});
+
+const EMPTY_DATA = {
+  timeline: [], endpoints: [], trend: [], insights: null, metrics: null,
+  peak: null, patterns: [], correlations: [], topEndpoint: null,
+  healthScore: null, isMock: false,
+};
 
 export const useActivity = () => {
-  // 🔹 Initial API load (returns all activity data)
-  const { data: initialData, loading, error } = useFetch(
-    activityService.getActivity
+  // 🔹 Read once at mount: if we already have real data cached (this tab
+  // session or a previous visit via localStorage), paint it immediately —
+  // no skeleton, no mock flash.
+  const cachedOnMount = activityService.getCachedActivity();
+
+  const [data, setData] = useState(
+    cachedOnMount ? normalizeActivityData(cachedOnMount) : EMPTY_DATA
   );
+  // loading = true only when we truly have nothing to show yet.
+  const [loading, setLoading] = useState(!cachedOnMount);
+  // refreshing = true while re-fetching in the background behind
+  // already-visible (possibly stale) data.
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
-  // 🔹 Combined state
-  const [data, setData] = useState({
-    timeline: [],
-    endpoints: [],
-    trend: [],
-    insights: null,
-    metrics: null,
-    peak: null,
-    patterns: [],
-    correlations: [],  // 🔗 SPIKE CORRELATIONS - KEY INSIGHT
-    topEndpoint: null,
-    healthScore: null,
-  });
+  const isFetching = useRef(false);
+  const initialLoadDone = useRef(!!cachedOnMount);
 
-  // ============================
-  // 🧠 Merge API → Base state
-  // ============================
   useEffect(() => {
-    if (initialData) {
-      setData({
-        timeline: initialData.timeline || [],
-        endpoints: initialData.endpoints || [],
-        trend: initialData.trend || [],
-        insights: initialData.insights || null,
-        metrics: initialData.metrics || null,
-        peak: initialData.peak || null,
-        patterns: initialData.patterns || [],
-        correlations: initialData.correlations || [],  // 🔗 SPIKE CORRELATIONS
-        topEndpoint: initialData.topEndpoint || null,
-        healthScore: typeof initialData.healthScore === 'number' ? initialData.healthScore : null,
-      });
-    }
-  }, [initialData]);
+    let active = true;
 
-  // ============================
-  // 🔄 Auto-refresh every 10 minutes
-  // ============================
-  useEffect(() => {
-    const refreshInterval = setInterval(() => {
-      activityService.getActivity().then((newData) => {
-        if (newData) {
-          setData({
-            timeline: newData.timeline || [],
-            endpoints: newData.endpoints || [],
-            trend: newData.trend || [],
-            insights: newData.insights || null,
-            metrics: newData.metrics || null,
-            peak: newData.peak || null,
-            patterns: newData.patterns || [],
-            correlations: newData.correlations || [],
-            topEndpoint: newData.topEndpoint || null,
-            healthScore: typeof newData.healthScore === 'number' ? newData.healthScore : null,
-          });
+    const fetchData = async (background) => {
+      if (background) setRefreshing(true);
+      else setLoading(true);
+
+      try {
+        const result = await activityService.getActivity();
+        if (result && active) {
+          setData(normalizeActivityData(result));
+          setError(null);
+          initialLoadDone.current = true;
         }
-      });
-    }, 600000); // 10 minutes (600,000 ms)
+      } catch (err) {
+        if (active) setError(err);
+      } finally {
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    };
 
-    return () => clearInterval(refreshInterval);
+    // Always fetch fresh data on mount: foreground (skeleton) if nothing
+    // cached, background (silent) if we're already showing stale real data.
+    fetchData(!!cachedOnMount);
+
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { data, loading, error: error && !initialData };
+  // 🔄 Background refresh every 30s
+  useEffect(() => {
+    let active = true;
+    const refreshInterval = setInterval(async () => {
+      if (isFetching.current || !initialLoadDone.current) return;
+      try {
+        isFetching.current = true;
+        setRefreshing(true);
+        const result = await activityService.getActivity();
+        if (result && active) {
+          setData(normalizeActivityData(result));
+        }
+      } catch (err) {
+        console.error('Background refresh failed:', err);
+      } finally {
+        isFetching.current = false;
+        if (active) setRefreshing(false);
+      }
+    }, 30000);
+
+    return () => {
+      active = false;
+      clearInterval(refreshInterval);
+    };
+  }, []);
+
+  return { data, loading, refreshing, error };
 };

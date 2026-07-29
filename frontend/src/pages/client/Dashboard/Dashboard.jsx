@@ -1,6 +1,7 @@
 // src/pages/client/Dashboard/Dashboard.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, RefreshCw, AlertTriangle, Bell, Activity } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Activity } from 'lucide-react';
 import StatsCards from '../../../components/client/dashboard/StatsCards/StatsCards';
 import AttackActivityChart from '../../../components/client/dashboard/AttackActivityChart/AttackActivityChart';
 import RiskBreakdown from '../../../components/client/dashboard/RiskBreakdown/RiskBreakdown';
@@ -49,7 +50,15 @@ const Dashboard = () => {
       setStats(statsData);
       setTrafficData(trafficData);
       setSuspiciousUsers(usersData);
-      setAlerts(alertsData);
+      
+      // Mark alerts as unread by default
+      const alertsWithReadStatus = alertsData.map(alert => ({
+        ...alert,
+        read: false,
+        timestamp: alert.timestamp || new Date()
+      }));
+      setAlerts(alertsWithReadStatus);
+      
       setLogs(logsData);
       setPolicies(policiesData);
 
@@ -79,6 +88,20 @@ const Dashboard = () => {
       setRefreshing(false);
     }
   }, [timeframe]);
+
+  // Handle marking notifications as read
+  const handleMarkAsRead = useCallback(() => {
+    setAlerts(prevAlerts => 
+      prevAlerts.map(alert => ({ ...alert, read: true }))
+    );
+  }, []);
+
+  // Handle view all alerts
+  const handleViewAllAlerts = useCallback(() => {
+    // Navigate to alerts page or open full alerts view
+    console.log('View all alerts clicked');
+    // You can add navigation logic here
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -111,7 +134,7 @@ const Dashboard = () => {
 
   const riskBreakdownData = stats?.trafficComposition && stats.totalRequests ? [
     {
-      name: 'Allowed',
+      name: 'Normal',
       value: Math.round(stats.totalRequests * (stats.trafficComposition.normal / 100)),
       color: '#34a853'
     },
@@ -207,35 +230,6 @@ const Dashboard = () => {
 
       {/* Risk Metrics Overview */}
       {riskMetrics && <RiskMetricsOverview metrics={riskMetrics} />}
-
-      {/* Recent Alerts Section */}
-      {alerts.length > 0 && (
-        <div className="alerts-section">
-          <div className="alerts-header">
-            <h3 className="alerts-title">
-              <Bell size={18} />
-              Recent Alerts
-            </h3>
-            <span className="alerts-count">{alerts.length} new</span>
-          </div>
-          <div className="alerts-list">
-            {alerts.slice(0, 5).map((alert, index) => (
-              <div key={alert.id || index} className="alert-item">
-                <span className={`alert-severity ${alert.type?.toLowerCase()?.replace(' ', '') || 'info'}`}>
-                  {alert.type || 'Info'}
-                </span>
-                <span className="alert-message">
-                  {alert.ip && <span className="alert-ip">{alert.ip}</span>}
-                  Score: {alert.score?.toFixed(2) || 'N/A'}
-                </span>
-                <span className="alert-time">
-                  {alert.timestamp?.toLocaleTimeString() || 'Just now'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Help Section */}
       <HelpSection />

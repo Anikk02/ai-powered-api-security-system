@@ -47,7 +47,7 @@ const AttackActivityChart = ({ data, loading, timeframe, onTimeframeChange }) =>
   return (
     <div className="chart-container">
       <div className="chart-header">
-        <h3 className="chart-title">Attack Activity (Last {timeframe})</h3>
+        <h3 className="chart-title">Traffic Activity (Last {timeframe})</h3>
         <div className="timeframe-selector">
           {timeframes.map((tf) => (
             <button

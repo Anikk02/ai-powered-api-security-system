@@ -14,3 +14,23 @@
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
+
+/* ─── COMPACT MODE ───────────────────────────────────────── */
+.spike-correlation-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.spike-correlation-compact .correlation-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.spike-correlation-compact .correlation-row strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}

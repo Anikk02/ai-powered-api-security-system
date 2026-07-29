@@ -72,7 +72,7 @@ const RiskMetricsOverview = ({ metrics }) => {
 
   return (
     <div className="metrics-container">
-      <h3 className="metrics-title">Risk Metrics Overview</h3>
+      <h3 className="metrics-title">Metrics Overview</h3>
       <div className="metrics-grid">
         {metricsData.map((metric, index) => (
           <div key={index} className="metric-card">

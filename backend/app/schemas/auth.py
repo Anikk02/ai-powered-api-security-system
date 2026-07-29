@@ -138,10 +138,10 @@ class ForgotPasswordResponse(BaseModel):
     """Response after requesting password reset."""
     
     message: str = "If the email exists, a reset link has been sent"
-    # In development mode, include the token for testing
-    reset_token: Optional[str] = Field(
+    # In development mode, include the reset link for testing
+    reset_link: Optional[str] = Field(
         None,
-        description="Reset token (only returned in development mode)"
+        description="Full reset link (only returned in development mode)"
     )
 
 

@@ -46,6 +46,7 @@ class RedisRepository:
              ▼
       RedisRepository
       ├── load_context()
+      ├── update_historical_suspicion()
       └── apply_decision()
 
     Every request performs
@@ -99,6 +100,88 @@ class RedisRepository:
             logger.exception("Failed loading penalty context")
 
             raise
+
+    # ==========================================================
+
+    async def update_historical_suspicion(
+        self,
+        context: PenaltyContext,
+        decision: PenaltyDecision,
+        features: dict | None = None,
+    ) -> None:
+        """
+        Update historical suspicion using EWMA with behavioral features.
+
+        Only updates for decisions that should learn the baseline:
+        - allow ✅
+        - throttle ✅
+        - block ❌
+
+        EWMA: new = 0.9 * old + 0.1 * current_suspicion
+        """
+        
+        if not decision.learn_baseline:
+            return
+        
+        # Base suspicion from trust score
+        base_suspicion = 1.0 - decision.trust_score
+        
+        # Enhance with behavioral features if available
+        behavioral_suspicion = self._compute_behavioral_suspicion(features)
+        
+        # Combine: 70% from trust, 30% from behavioral
+        current_suspicion = 0.7 * base_suspicion + 0.3 * behavioral_suspicion
+        
+        # EWMA update
+        old_historical = context.historical_suspicion
+        new_historical = 0.9 * old_historical + 0.1 * current_suspicion
+        
+        # Store in Redis with 7-day TTL
+        base = StateManager._base(
+            context.client_id,
+            context.identity_id,
+        )
+        key = f"{base}:historical_suspicion"
+        
+        await self.redis.setex(
+            key,
+            86400 * 7,  # 7 days
+            str(round(new_historical, 4)),
+        )
+        
+        # Log the update
+        logger.debug(
+            f"[RedisRepository] Updated historical_suspicion for {context.identity_id}: "
+            f"{old_historical:.3f} → {new_historical:.3f} "
+            f"(base={base_suspicion:.3f}, behavioral={behavioral_suspicion:.3f}, "
+            f"action={decision.action})"
+        )
+
+    # ==========================================================
+
+    async def apply_decision(
+        self,
+        context: PenaltyContext,
+        decision: PenaltyDecision,
+    ) -> None:
+        """
+        Persist PolicyEngine output.
+
+        This is the ONLY write entrypoint.
+        """
+
+        try:
+
+            await self._pipeline_write(
+                context,
+                decision,
+            )
+
+        except Exception:
+
+            logger.exception(
+                "Failed applying penalty decision"
+            )
 
     # ==========================================================
     # PIPELINE READ
@@ -181,6 +264,12 @@ class RedisRepository:
 
         pipe.get(f"{base}:risk_score")
 
+        # ------------------------------------------------------
+        # Historical suspicion (EWMA)
+        # ------------------------------------------------------
+
+        pipe.get(f"{base}:historical_suspicion")
+
         return await pipe.execute()
 
     # ==========================================================
@@ -215,6 +304,8 @@ class RedisRepository:
             throttled,
 
             previous_risk,
+
+            historical_suspicion,
         ) = data
 
         def _to_int(value):
@@ -284,6 +375,8 @@ class RedisRepository:
 
             combined_reputation=combined_reputation,
 
+            historical_suspicion=_to_float(historical_suspicion),
+
             is_blocked=bool(
                 identity_blocked
             ),
@@ -308,34 +401,6 @@ class RedisRepository:
                 "previous_risk": _to_float(previous_risk),
             },
         )
-
-    # ==========================================================
-    # APPLY DECISION
-    # ==========================================================
-
-    async def apply_decision(
-        self,
-        context: PenaltyContext,
-        decision: PenaltyDecision,
-    ) -> None:
-        """
-        Persist PolicyEngine output.
-
-        This is the ONLY write entrypoint.
-        """
-
-        try:
-
-            await self._pipeline_write(
-                context,
-                decision,
-            )
-
-        except Exception:
-
-            logger.exception(
-                "Failed applying penalty decision"
-            )
 
     # ==========================================================
     # PIPELINE WRITE
@@ -398,6 +463,17 @@ class RedisRepository:
             pipe,
             context,
             decision,
+        )
+
+        # ------------------------------------------------------
+        # Update historical suspicion (EWMA)
+        # ------------------------------------------------------
+
+        self._update_historical_suspicion_in_pipeline(
+            pipe,
+            context,
+            decision,
+            base,
         )
 
         # ------------------------------------------------------
@@ -470,8 +546,118 @@ class RedisRepository:
 
         await pipe.execute()
 
-    
-        # ==========================================================
+    # ==========================================================
+    # HISTORICAL SUSPICION (EWMA)
+    # ==========================================================
+
+    def _update_historical_suspicion_in_pipeline(
+        self,
+        pipe,
+        context: PenaltyContext,
+        decision: PenaltyDecision,
+        base: str,
+    ) -> None:
+        """
+        Update historical suspicion using EWMA.
+
+        Only update for decisions that should learn the baseline:
+        - allow ✅
+        - throttle ✅
+        - block ❌
+
+        EWMA: new = 0.9 * old + 0.1 * current_suspicion
+
+        This creates a smooth, decaying average of recent behavior.
+        """
+        
+        if not decision.learn_baseline:
+            return
+        
+        # Current suspicion (inverse of trust)
+        current_suspicion = 1.0 - decision.trust_score
+        
+        # Get old historical value from context
+        old_historical = context.historical_suspicion
+        
+        # EWMA: 90% old, 10% current
+        new_historical = 0.9 * old_historical + 0.1 * current_suspicion
+        
+        # Store in Redis with 7-day TTL
+        key = f"{base}:historical_suspicion"
+        pipe.setex(
+            key,
+            86400 * 7,  # 7 days
+            str(round(new_historical, 4)),
+        )
+        
+        # Log the update
+        logger.debug(
+            f"[RedisRepository] Updated historical_suspicion for {context.identity_id}: "
+            f"{old_historical:.3f} → {new_historical:.3f} "
+            f"(current_suspicion={current_suspicion:.3f}, action={decision.action})"
+        )
+
+    # ==========================================================
+
+    def _compute_behavioral_suspicion(self, features: dict | None) -> float:
+        """
+        Compute suspicion from behavioral features.
+        """
+        if not features:
+            return 0.0
+        
+        suspicion = 0.0
+        
+        # 1. Request regularity (low = suspicious)
+        regularity = features.get("request_regularity", 1.0)
+        if regularity < 0.3:
+            suspicion += 0.4
+        elif regularity < 0.5:
+            suspicion += 0.2
+        
+        # 2. Burst score (high = suspicious)
+        burst_score = features.get("burst_score", 0.0)
+        if burst_score > 0.6:
+            suspicion += 0.3
+        elif burst_score > 0.4:
+            suspicion += 0.15
+        
+        # 3. IP changes
+        ip_changes = features.get("ip_changes", 0)
+        if ip_changes >= 5:
+            suspicion += 0.5
+        elif ip_changes >= 3:
+            suspicion += 0.25
+        
+        # 4. Error rate (high = suspicious)
+        error_rate = features.get("error_rate", 0.0)
+        if error_rate > 0.3:
+            suspicion += 0.3
+        elif error_rate > 0.15:
+            suspicion += 0.15
+        
+        # 5. Endpoint entropy (high = exploratory = suspicious)
+        entropy = features.get("endpoint_entropy", 0.0)
+        if entropy > 0.7:
+            suspicion += 0.3
+        elif entropy > 0.5:
+            suspicion += 0.15
+        
+        # 6. Sensitive endpoint hits
+        sensitive_hits = features.get("sensitive_hits", 0)
+        if sensitive_hits > 10:
+            suspicion += 0.4
+        elif sensitive_hits > 5:
+            suspicion += 0.2
+        
+        # 7. Bot user agent
+        if features.get("is_bot", False):
+            suspicion += 0.3
+        
+        # Cap at 1.0
+        return min(1.0, suspicion)
+
+    # ==========================================================
     # REPUTATION
     # ==========================================================
 
@@ -653,4 +839,3 @@ class RedisRepository:
 
 
 redis_repository = RedisRepository()
-    

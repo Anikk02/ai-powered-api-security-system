@@ -31,7 +31,7 @@ class PenaltyContext:
     """
 
     # ==========================================================
-    # Identity
+    # Identity - REQUIRED (no defaults)
     # ==========================================================
 
     client_id: int | None
@@ -45,7 +45,7 @@ class PenaltyContext:
     user_agent: str
 
     # ==========================================================
-    # Current Request
+    # Current Request - REQUIRED (no defaults)
     # ==========================================================
 
     risk_score: float
@@ -59,7 +59,7 @@ class PenaltyContext:
     unique_ip_count: int
 
     # ==========================================================
-    # Reputation
+    # Reputation - REQUIRED (no defaults)
     # ==========================================================
 
     ip_reputation: float
@@ -69,7 +69,7 @@ class PenaltyContext:
     fingerprint_reputation: float
 
     # ==========================================================
-    # Current State
+    # Current State - REQUIRED (no defaults)
     # ==========================================================
 
     is_blocked: bool
@@ -81,7 +81,8 @@ class PenaltyContext:
     is_throttled: bool
 
     # ==========================================================
-    # Adaptive Thresholds
+    # Adaptive Thresholds - REQUIRED (no defaults)
+    # MOVED HERE BEFORE any fields with defaults
     # ==========================================================
 
     allow_threshold: float
@@ -91,7 +92,22 @@ class PenaltyContext:
     block_threshold: float
 
     # ==========================================================
-    # Derived Values
+    # Historical Behavior (EWMA) - END USER LEVEL
+    # NOW HAS A DEFAULT - this is fine because all required fields
+    # are above this point
+    # ==========================================================
+
+    historical_suspicion: float = 0.0
+    """
+    EWMA of this END USER's recent suspicious behavior.
+    
+    Tracks the user (identity_id), not the client application.
+    Updated every request with learn_baseline=True.
+    Used to detect gradual behavior degradation.
+    """
+
+    # ==========================================================
+    # Derived Values - ALL HAVE DEFAULTS
     # Filled by TrustEngine / RecoveryEngine
     # ==========================================================
 
@@ -104,7 +120,7 @@ class PenaltyContext:
     adjusted_risk: float = 0.0
 
     # ==========================================================
-    # Optional Metadata
+    # Optional Metadata - HAS DEFAULT
     # ==========================================================
 
     metadata: dict = field(default_factory=dict)
@@ -195,5 +211,6 @@ class PenaltyContext:
             "allow_threshold": self.allow_threshold,
             "throttle_threshold": self.throttle_threshold,
             "block_threshold": self.block_threshold,
+            "historical_suspicion": self.historical_suspicion,
             "metadata": self.metadata,
         }

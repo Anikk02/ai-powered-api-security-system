@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 
 from .context import PenaltyContext
 from .decision import PenaltyDecision
@@ -11,6 +12,8 @@ from .redis_repository import redis_repository
 from .trust_engine import TrustEngine
 from .policy_engine import PolicyEngine
 from .recovery_engine import RecoveryEngine
+
+logger = logging.getLogger(__name__)
 
 
 class PenaltyManager:
@@ -75,6 +78,7 @@ class PenaltyManager:
         signals,
         risk_score: float,
         base_action: str = "allow",
+        features: dict | None = None,
     ) -> PenaltyDecision:
 
         fingerprint = cls._fingerprint(
@@ -96,10 +100,13 @@ class PenaltyManager:
         )
 
         # -------------------------------------------------
-        # Trust Engine
+        # Trust Engine (with features)
         # -------------------------------------------------
 
-        trust_score = TrustEngine.compute(context)
+        trust_score = TrustEngine.compute(
+            ctx=context,
+            features=features,
+        )
 
         # -------------------------------------------------
         # Policy Engine
@@ -120,6 +127,17 @@ class PenaltyManager:
             context=context,
             decision=decision,
         )
+
+        # -------------------------------------------------
+        # Update historical suspicion (EWMA with behavioral features)
+        # -------------------------------------------------
+
+        if decision.learn_baseline:
+            await redis_repository.update_historical_suspicion(
+                context=context,
+                decision=decision,
+                features=features,
+            )
 
         # -------------------------------------------------
         # Persist decision
@@ -154,6 +172,12 @@ class PenaltyManager:
             context.unique_ip_count
         )
 
+        decision.metadata["historical_suspicion"] = (
+            context.historical_suspicion
+        )
+
+        decision.metadata["learn_baseline"] = decision.learn_baseline
+
         return decision
 
     # ---------------------------------------------------------
@@ -168,6 +192,7 @@ class PenaltyManager:
         signals,
         risk_score: float,
         base_action: str = "allow",
+        features: dict | None = None,
     ) -> tuple[str, str, dict]:
 
         decision = await cls.evaluate_decision(
@@ -175,6 +200,7 @@ class PenaltyManager:
             signals=signals,
             risk_score=risk_score,
             base_action=base_action,
+            features=features,
         )
 
         metadata = decision.to_metadata()
@@ -197,6 +223,12 @@ class PenaltyManager:
             decision.metadata.get("unique_ip_count")
         )
 
+        metadata["historical_suspicion"] = (
+            decision.metadata.get("historical_suspicion")
+        )
+
+        metadata["learn_baseline"] = decision.metadata.get("learn_baseline")
+
         return (
             decision.action,
             decision.reason,
@@ -217,6 +249,7 @@ async def apply_penalty(
     signals,
     risk_score: float,
     base_action: str = "allow",
+    features: dict | None = None,
 ) -> PenaltyDecision:
 
     return await PenaltyManager.evaluate_decision(
@@ -224,4 +257,5 @@ async def apply_penalty(
         signals=signals,
         risk_score=risk_score,
         base_action=base_action,
+        features=features,
     )

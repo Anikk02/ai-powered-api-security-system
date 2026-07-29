@@ -26,6 +26,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3001",
         "http://127.0.0.1:3002",
         "http://localhost:3001",
+        "https://api-security-system.vercel.app",
+        "https://uncohesively-homeliest-briella.ngrok-free.dev"
     ]
 
     #Database
@@ -43,6 +45,16 @@ class Settings(BaseSettings):
     BCRYPT_ROUNDS: int = 12
     MAX_FAILED_LOGIN_ATTEMPTS: int = 10
     ACCOUNT_LOCKOUT_MINUTES: int = 30
+
+    # Frontend URL (for reset/email links)
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # SMTP Email Settings (optional — leave blank for dev/log-only mode)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
 
     #Security
     RATE_LIMIT_WINDOW: int = 60 #seconds

@@ -71,6 +71,29 @@ const User = () => {
     return () => clearInterval(interval);
   }, [fetchUsers]);
 
+  // Keep the OPEN detail panel in sync too. `users` (the list) already
+  // polls every 15s, but `selectedUser` was previously a one-time snapshot
+  // taken at click time - it never learned about block/unblock changes
+  // that happened outside this UI (policy engine auto-block, manual Redis
+  // edits, another admin tab, etc), so the "Status" card could go stale
+  // and silently disagree with the actual Redis-backed block state.
+  useEffect(() => {
+    if (!selectedUser?.id) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const details = await userService.getUserDetails(selectedUser.id);
+        setSelectedUser(prev =>
+          prev && prev.id === selectedUser.id ? { ...prev, ...details } : prev
+        );
+      } catch (error) {
+        console.error('Failed to refresh selected user details:', error);
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [selectedUser?.id]);
+
   const filteredUsers = users.filter(user =>
     user.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.ip.includes(searchTerm)

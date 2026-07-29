@@ -25,16 +25,16 @@ def get_adaptive_thresholds():
     global SMOOTHED_HIGH, SMOOTHED_MEDIUM
 
     if len(RECENT_SCORES) < 30:
-        return 0.70, 0.45
+        return 0.70, 0.50
 
     data = list(RECENT_SCORES)
 
-    dynamic_high = _percentile(data, 85)
-    dynamic_medium = _percentile(data, 65)
+    dynamic_high = _percentile(data, 90)
+    dynamic_medium = _percentile(data, 70)
 
     # Hybrid floor - keep reasonable lower bounds
-    dynamic_high = max(0.60, dynamic_high)   # Was 0.70
-    dynamic_medium = max(0.35, dynamic_medium)  # Was 0.45
+    dynamic_high = max(0.60, min(dynamic_high, 0.75))  # Was 0.70
+    dynamic_medium = max(0.40, min(dynamic_medium, 0.60))  # Was 0.45
 
     # Smoothing
     alpha = 0.3
@@ -42,8 +42,8 @@ def get_adaptive_thresholds():
     SMOOTHED_MEDIUM = (1 - alpha) * SMOOTHED_MEDIUM + alpha * dynamic_medium
 
     # Clamp - MUCH LOWER upper bounds
-    SMOOTHED_HIGH = min(max(SMOOTHED_HIGH, 0.60), 0.80)   # Was 0.90
-    SMOOTHED_MEDIUM = min(max(SMOOTHED_MEDIUM, 0.35), 0.65)  # Was 0.80
+    SMOOTHED_HIGH = max(0.60, min(SMOOTHED_HIGH, 0.75))
+    SMOOTHED_MEDIUM = max(0.40, min(SMOOTHED_MEDIUM, 0.60))
 
     return SMOOTHED_HIGH, SMOOTHED_MEDIUM
 
@@ -107,6 +107,8 @@ async def compute_risk(signals, features: dict):
         high_th, med_th = get_adaptive_thresholds()
 
         # LABEL
+        if raw_score >= 0.80:
+            label = "critical"
         if raw_score > high_th:
             label = "high"
         elif raw_score > med_th:
@@ -118,6 +120,9 @@ async def compute_risk(signals, features: dict):
 
         # EXPLANATION - enhanced with new signals
         reasons = []
+
+        if raw_score >= 80:
+            reasons.append("⚠️ CRITICAL: Extremely high risk score")
 
         if behavior_score > 0.5:
             reasons.append("Abnormal traffic spike")

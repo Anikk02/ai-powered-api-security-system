@@ -36,6 +36,42 @@
   color: var(--text-secondary);
 }
 
+/* ─── COMPACT MODE ───────────────────────────────────────── */
+.chart-compact {
+  width: 100%;
+}
+
+.chart-compact .chart-legend {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  justify-content: center;
+}
+
+.chart-compact .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.chart-compact .legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-dot.allowed {
+  background: var(--accent-success);
+}
+.legend-dot.blocked {
+  background: var(--accent-danger);
+}
+.legend-dot.throttled {
+  background: var(--accent-warning);
+}
+
 /* Pulse animation */
 @keyframes pulse {
   0%, 100% {

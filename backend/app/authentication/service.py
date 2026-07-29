@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from app.utils.email import send_password_reset_email, send_email_change_email
+
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
@@ -359,15 +361,17 @@ async def forgot_password(
     # 🔗 Build frontend reset link
     reset_link = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
 
+    # 📧 Send email (dev: logs link; prod: sends via SMTP)
+    send_password_reset_email(client.email, reset_link)
+
     # 📦 Response
     response = ForgotPasswordResponse(
         message="If the email exists, a reset link has been sent"
     )
 
-    # 🚧 DEV MODE ONLY → expose link
-    if settings.ENVIRONMENT == "development":
+    # 🚧 DEV MODE ONLY → expose link in response body
+    if settings.ENVIRONMENT.value == "development":
         response.reset_link = reset_link
-        logger.info(f"[RESET LINK] {reset_link}")
 
     return response
 
@@ -565,14 +569,16 @@ async def request_email_change(
 
     logger.info(f"Email change requested: {client.email} → {data.new_email}")
 
+    # 📧 Send verification email to the NEW address
+    send_email_change_email(data.new_email, link)
+
     response = ChangeEmailResponse(
         message="Verification link sent to new email"
     )
 
-    # DEV mode
-    if settings.ENVIRONMENT == "development":
+    # 🚧 DEV MODE ONLY → expose link in response body
+    if settings.ENVIRONMENT.value == "development":
         response.verification_link = link
-        logger.info(f"[EMAIL CHANGE LINK] {link}")
 
     return response
 

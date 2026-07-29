@@ -67,6 +67,12 @@ class PenaltyDecision:
     throttle_duration: int = 0
 
     # ==========================================================
+    # Adaptive Baseline Learning
+    # ==========================================================
+
+    learn_baseline: bool = False  # <-- ADD THIS FIELD
+
+    # ==========================================================
     # Logging / Explainability
     # ==========================================================
 
@@ -149,6 +155,8 @@ class PenaltyDecision:
 
             "increment_violation": self.increment_violation,
             "recovered": self.should_recover,
+
+            "learn_baseline": self.learn_baseline,  # <-- ADD THIS
 
             "metadata": self.metadata,
         }
