@@ -1,0 +1,116 @@
+.email-section {
+  width: 100%;
+}
+
+.email-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.email-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.email-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.email-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.email-input-wrapper {
+  position: relative;
+}
+
+.email-input-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+}
+
+.email-input {
+  width: 100%;
+  padding: 0.5rem 1rem 0.5rem 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  font-size: 0.875rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.email-input:focus {
+  outline: 2px solid var(--accent-info);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.email-info-box {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.email-info-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--accent-info);
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.email-info-text {
+  font-size: 0.875rem;
+  color: var(--accent-info);
+}
+
+.email-submit-btn {
+  padding: 0.5rem 1.5rem;
+  background: var(--accent-info);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+}
+
+.email-submit-btn:hover:not(:disabled) {
+  background: #2563eb;
+  box-shadow: var(--shadow-glow);
+}
+
+.email-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.email-btn-icon {
+  width: 1rem;
+  height: 1rem;
+}

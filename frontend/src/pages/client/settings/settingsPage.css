@@ -1,51 +1,304 @@
+.settings-page {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.settings-content {
+  flex: 1;
+  padding: 0 var(--spacing-lg);
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 .settings-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xl);
+  max-width: 48rem;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.settings-title {
-  font-size: 1.8rem;
-  font-weight: 600;
+.settings-message {
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  animation: fadeIn 0.3s ease-out;
 }
 
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
+.settings-message-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.settings-message-success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.settings-message-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.settings-message-icon-error {
+  color: var(--accent-danger);
+}
+
+.settings-message-icon-success {
+  color: var(--accent-success);
+}
+
+.settings-message-text {
+  flex: 1;
+}
+
+.settings-message-text-error {
+  color: var(--accent-danger);
+}
+
+.settings-message-text-success {
+  color: var(--accent-success);
+}
+
+.settings-message-dismiss {
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+.settings-message-dismiss-error {
+  color: var(--accent-danger);
+}
+
+.settings-message-dismiss-error:hover {
+  color: #dc2626;
+}
+
+.settings-message-dismiss-success {
+  color: var(--accent-success);
+}
+
+.settings-message-dismiss-success:hover {
+  color: #059669;
+}
+
+.settings-plan-container {
+  margin-bottom: 1.5rem;
+}
+
+.settings-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-xl);
+  transition: all var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-card:hover {
+  border-color: var(--accent-info);
+  box-shadow: var(--shadow-md);
+}
+
+.settings-footer {
+  margin-top: 2rem;
   text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  border-top: 1px solid var(--border-color);
+  padding-top: 1.5rem;
+}
+
+/* Current Plan Styles */
+.current-plan {
+  background: linear-gradient(to right, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.1));
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.current-plan-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.current-plan-icon-wrapper {
+  background: var(--accent-info);
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.current-plan-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #ffffff;
+}
+
+.current-plan-info {
+  flex: 1;
+}
+
+.current-plan-label {
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
-.empty-state h2 {
-  font-size: 1.5rem;
-  margin-bottom: var(--spacing-md);
+.current-plan-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--accent-info);
+}
+
+.current-plan-renewal {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.current-plan-renewal-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Settings Tabs */
+.settings-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-tab {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.settings-tab:hover {
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
-.empty-state p {
-  max-width: 400px;
-  line-height: 1.6;
-  color: var(--text-tertiary);
+.settings-tab.active {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-info);
 }
 
-.settings-header {
-  margin-bottom: 16px;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.settings-subtitle {
-  font-size: 14px;
-  color: #9ca3af;
+/* Responsive */
+@media (max-width: 768px) {
+  .settings-page {
+    padding: var(--spacing-md);
+  }
+
+  .settings-content {
+    padding: 0;
+  }
+
+  .settings-card {
+    padding: var(--spacing-lg);
+  }
+
+  .settings-tabs {
+    gap: 0.25rem;
+  }
+
+  .settings-tab {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
 }
 
-.warning-text {
-  margin: 10px 0;
-  padding: 8px 12px;
-  background: rgba(250, 204, 21, 0.1);
-  color: #facc15;
-  border-radius: 6px;
-  font-size: 13px;
+@media (max-width: 480px) {
+  .settings-page {
+    padding: var(--spacing-sm);
+  }
+
+  .settings-card {
+    padding: var(--spacing-md);
+  }
+
+  .settings-tabs {
+    gap: 0.15rem;
+  }
+
+  .settings-tab {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Auto-dismiss animation */
+.settings-message {
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  animation: slideDown 0.3s ease-out;
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out, max-height 0.3s ease-out;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.settings-message.hiding {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+  margin-bottom: 0;
+  padding: 0 1rem;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 200px;
+  }
 }

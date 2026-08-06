@@ -27,7 +27,7 @@ from app.api.routes import dashboard
 from app.api.routes.activity import router as activity_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.api_keys import router as api_router
-from app.api.routes.developer import router as developer_router   
+from app.api.routes.developer import router as developer_router
 from app.authentication import admin_routes
 
 # Setup logging

@@ -1,135 +1,104 @@
-import React, { useEffect, useState } from "react";
-import { Loader2, CheckCircle } from "lucide-react";
-import toast from "react-hot-toast";
+import React, { useState, useEffect } from 'react';
+import { FiBriefcase, FiMail, FiSave } from 'react-icons/fi';
+import './ProfileSection.css';
 
-import authService from "../../../services/authService";
-import "./settings.css";
+const ProfileSection = ({ profile, loading, updateProfile }) => {
+  const [formData, setFormData] = useState({
+    companyName: '',
+    email: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
 
-const ProfileSection = () => {
-  const [profile, setProfile] = useState(null);
-  const [company, setCompany] = useState("");
-  const [email, setEmail] = useState("");
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  // ============================
-  // 🔄 LOAD PROFILE
-  // ============================
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await authService.getMe();
-
-        setProfile(data);
-        setCompany(data.company_name || "");
-        setEmail(data.email || "");
-      } catch (err) {
-        toast.error("Failed to load profile");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, []);
-
-  // ============================
-  // 💾 UPDATE PROFILE
-  // ============================
-  const handleSave = async () => {
-    if (!company.trim()) {
-      toast.error("Company name cannot be empty");
-      return;
-    }
-
-    setSaving(true);
-    setSuccess(false);
-
-    try {
-      await authService.updateProfile({
-        company_name: company,
+    if (profile) {
+      setFormData({
+        companyName: profile.company_name || '',
+        email: profile.email || ''
       });
-
-      toast.success("Profile updated");
-      setSuccess(true);
-
-      // remove success after 2s
-      setTimeout(() => setSuccess(false), 2000);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Update failed");
-    } finally {
-      setSaving(false);
     }
+  }, [profile]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ============================
-  // ⏳ LOADING STATE
-  // ============================
-  if (loading) {
-    return (
-      <div className="settings-card">
-        <h3>👤 Profile</h3>
-        <div className="settings-loading">
-          <Loader2 className="spinner" size={18} />
-          <span>Loading profile...</span>
-        </div>
-      </div>
-    );
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    // Send company_name to backend (snake_case)
+    const payload = {
+      company_name: formData.companyName
+    };
+    await updateProfile(payload);
+    setIsEditing(false);
+  };
 
-  // ============================
-  // 🎨 UI
-  // ============================
   return (
-    <div className="settings-card">
-      <h3>👤 Profile</h3>
+    <div className="profile-section">
+      <h2 className="profile-title">Profile</h2>
+      <p className="profile-subtitle">View and manage your profile information.</p>
 
-      <div className="settings-form">
-        {/* EMAIL (READ ONLY) */}
-        <div className="settings-group">
-          <label>Email</label>
-          <input
-            type="email"
-            value={email}
-            disabled
-            className="input-disabled"
-          />
+      <form onSubmit={handleSubmit} className="profile-form">
+        <div className="profile-form-group">
+          <label className="profile-label">Company Name</label>
+          <div className="profile-input-wrapper">
+            <FiBriefcase className="profile-input-icon" />
+            <input
+              type="text"
+              name="companyName"
+              value={formData.companyName}
+              onChange={handleChange}
+              disabled={!isEditing}
+              className={`profile-input ${isEditing ? 'enabled' : ''}`}
+              placeholder="Enter your company name"
+            />
+          </div>
         </div>
 
-        {/* COMPANY */}
-        <div className="settings-group">
-          <label>Company Name</label>
-          <input
-            type="text"
-            placeholder="Enter company name"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            disabled={saving}
-          />
+        <div className="profile-form-group">
+          <label className="profile-label">Email Address</label>
+          <div className="profile-input-wrapper">
+            <FiMail className="profile-input-icon" />
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              disabled={true}
+              className="profile-input"
+            />
+          </div>
         </div>
 
-        {/* ACTION */}
-        <div className="settings-actions">
-          <button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="spinner" size={16} />
-                Saving...
-              </>
-            ) : (
-              "Save Changes"
-            )}
-          </button>
-
-          {success && (
-            <span className="success-msg">
-              <CheckCircle size={16} /> Saved
-            </span>
+        <div className="profile-actions">
+          {isEditing ? (
+            <>
+              <button
+                type="submit"
+                disabled={loading}
+                className="profile-btn profile-btn-primary"
+              >
+                <FiSave className="profile-btn-icon" />
+                {loading ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="profile-btn profile-btn-secondary"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="profile-btn profile-btn-primary"
+            >
+              Edit Profile
+            </button>
           )}
         </div>
-      </div>
+      </form>
     </div>
   );
 };

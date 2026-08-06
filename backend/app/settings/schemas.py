@@ -1,50 +1,40 @@
-from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from datetime import datetime
 
-
-# =========================================
-# 👤 PROFILE
-# =========================================
+class ProfileUpdate(BaseModel):
+    company_name: Optional[str] = Field(None, max_length=255)
 
 class ProfileResponse(BaseModel):
     id: int
     email: EmailStr
+    company_name: Optional[str] = None
+    role: str
+    status: str
+    email_verified: bool
     created_at: datetime
+    last_login_at: Optional[datetime] = None
 
+    class Config:
+        from_attributes = True
 
-class UpdateProfileRequest(BaseModel):
-    email: EmailStr
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8)
 
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
 
-class UpdateProfileResponse(BaseModel):
+class EmailChangeConfirm(BaseModel):
+    token: str
+
+class AccountDeleteRequest(BaseModel):
+    password: str = Field(..., min_length=8)
+
+class PlanResponse(BaseModel):
+    name: str
+    next_renewal: Optional[datetime] = None
+
+class MessageResponse(BaseModel):
     message: str
-
-
-# =========================================
-# 🔑 API KEY
-# =========================================
-
-class APIKeyResponse(BaseModel):
-    api_key: Optional[str]  # masked key
-    created_at: Optional[datetime]
-
-
-class APIKeyRegenerateResponse(BaseModel):
-    api_key: str  # full key (shown once)
-    message: str
-
-
-# =========================================
-# ⚙️ SETTINGS OVERVIEW
-# =========================================
-
-class APIKeyOverview(BaseModel):
-    masked: Optional[str]
-    is_active: bool
-    created_at: Optional[datetime]
-
-
-class SettingsOverviewResponse(BaseModel):
-    profile: ProfileResponse
-    api_key: APIKeyOverview
+    success: bool = True

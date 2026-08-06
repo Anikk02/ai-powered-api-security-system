@@ -17,7 +17,7 @@ async def create_admin_user():
     async with AsyncSessionLocal() as db:
         # Check if admin already exists
         result = await db.execute(
-            select(Admin).where(Admin.email == "anshika18@triansec.com")
+            select(Admin).where(Admin.email == "aniket@triansec.com")
         )
         existing = result.scalar_one_or_none()
         
@@ -35,9 +35,9 @@ async def create_admin_user():
         
         # Create admin with specified credentials
         admin = Admin(
-            email="anshika18@triansec.com",
-            password_hash=hash_password("Anshika@003"),
-            name="Anshika Singh",
+            email="aniket@triansec.com",
+            password_hash=hash_password("Aniket0208@#"),
+            name="Aniket Paswan",
             role="admin",
             status="active",
         )
