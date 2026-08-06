@@ -16,7 +16,7 @@ DURATION_MINUTES = 30
 NORMAL_USERS_COUNT = 50  # Increased to 50 normal users
 
 # API Key for authentication
-API_KEY = "ts_live_a3c597bf7a067a316646f02078b06646f4c994aa35e49e5f"
+API_KEY = ""
 
 # ============ IP POOL ============
 IP_POOL = [
