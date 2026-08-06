@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="24" fill="url(#g)"/>
+  <path d="M60 100s24-12 24-30V28L60 18 36 28v42c0 18 24 30 24 30z" fill="white" opacity="0.95"/>
+  <path d="M60 94s18-9 18-22V31l-18-7-18 7v41c0 13 18 22 18 22z" fill="#2563eb"/>
+  <path d="M60 88s14-7 14-17V34l-14-5-14 5v35c0 10 14 17 14 17z" fill="white"/>
+  <polyline points="50 54 57 61 68 48" stroke="#2563eb" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="60" y="70" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#2563eb" text-anchor="middle">API</text>
+</svg>
